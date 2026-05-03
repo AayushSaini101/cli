@@ -4,6 +4,21 @@ import * as path from 'path';
 import { expect } from 'chai';
 import { Watcher, runWatchMode, isLocalTemplate } from '../../../../src/utils/generate/watcher';
 
+function rmQuiet(dir: string): void {
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function unlinkQuiet(file: string): void {
+  if (fs.existsSync(file)) {
+    fs.unlinkSync(file);
+  }
+}
+
+const noop = (): undefined => undefined;
+const noopAsync = async (): Promise<void> => undefined;
+
 describe('isLocalTemplate()', () => {
   let tmp: string;
 
@@ -12,11 +27,7 @@ describe('isLocalTemplate()', () => {
   });
 
   afterEach(() => {
-    try {
-      fs.rmSync(tmp, { recursive: true, force: true });
-    } catch {
-      // ignore
-    }
+    rmQuiet(tmp);
   });
 
   it('returns true when the path is a symbolic link', async () => {
@@ -71,16 +82,8 @@ describe('runWatchMode()', () => {
   });
 
   afterEach(() => {
-    try {
-      fs.rmSync(templateRoot, { recursive: true, force: true });
-    } catch {
-      // ignore
-    }
-    try {
-      fs.rmSync(defaultTemplatesDir, { recursive: true, force: true });
-    } catch {
-      // ignore
-    }
+    rmQuiet(templateRoot);
+    rmQuiet(defaultTemplatesDir);
   });
 
   it('does not require isLocalTemplate on the command instance (regression for #2018)', async () => {
@@ -96,9 +99,7 @@ describe('runWatchMode()', () => {
       warn: (msg: string) => {
         warns.push(msg);
       },
-      error: () => {
-        /* not used when watch closes cleanly */
-      },
+      error: noop,
     };
 
     const generatorClass = {
@@ -106,16 +107,7 @@ describe('runWatchMode()', () => {
       TRANSPILED_TEMPLATE_LOCATION: '.transpiled',
     };
 
-    await runWatchMode(
-      thisArg,
-      specPath,
-      templateRoot,
-      'out',
-      generatorClass,
-      async () => {
-        /* no-op change handler */
-      }
-    );
+    await runWatchMode(thisArg, specPath, templateRoot, 'out', generatorClass, noopAsync);
 
     expect(logs.some((l) => l.includes('[WATCHER]'))).to.equal(true);
     expect(warns.length).to.equal(1);
@@ -130,15 +122,11 @@ describe('runWatchMode()', () => {
 
       const warns: string[] = [];
       const thisArg = {
-        log: () => {
-          /* watcher logs */
-        },
+        log: noop,
         warn: (msg: string) => {
           warns.push(msg);
         },
-        error: () => {
-          /* not used */
-        },
+        error: noop,
       };
 
       const generatorClass = {
@@ -146,29 +134,12 @@ describe('runWatchMode()', () => {
         TRANSPILED_TEMPLATE_LOCATION: '.transpiled',
       };
 
-      await runWatchMode(
-        thisArg,
-        specPath,
-        templateRoot,
-        'out',
-        generatorClass,
-        async () => {
-          /* no-op */
-        }
-      );
+      await runWatchMode(thisArg, specPath, templateRoot, 'out', generatorClass, noopAsync);
 
       expect(warns.length).to.equal(0);
     } finally {
-      try {
-        fs.unlinkSync(installedPath);
-      } catch {
-        // ignore
-      }
-      try {
-        fs.rmSync(realDir, { recursive: true, force: true });
-      } catch {
-        // ignore
-      }
+      unlinkQuiet(installedPath);
+      rmQuiet(realDir);
     }
   });
 });
